@@ -13,7 +13,7 @@
     "web-vitals": "^2.1.4"
   },
 
-  "homepage": "https://abraam00.github.io/helloooo",
+  "homepage": "https://abraam00.github.io/cute",
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
