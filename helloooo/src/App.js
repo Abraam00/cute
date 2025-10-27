@@ -1,11 +1,12 @@
 import React from "react";
-import DataDisplay from "./components/DataDisplay";
+import DomeGallery from "./components/DomeGallery";
 
 function App() {
 	return (
 		<div className='App'>
-			<h1>Hellooo</h1>
-			<DataDisplay />
+			<div style={{ width: "100vw", height: "100vh" }}>
+				<DomeGallery />
+			</div>
 		</div>
 	);
 }
