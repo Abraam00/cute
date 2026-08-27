@@ -9,6 +9,7 @@ const colors = {
   incorrectRed: '#ff3355',
   white: '#ffffff',
   dark: '#333333',
+  yellow: '#ffc107',
 };
 
 const styles = {
@@ -62,6 +63,20 @@ const styles = {
     fontWeight: 'bold',
     boxShadow: '0 4px 0 #1a5c08',
     marginBottom: '2rem',
+    position: 'relative', // Allows absolute positioning for the badge
+  },
+  importantBadge: {
+    position: 'absolute',
+    top: '-15px',
+    right: '-15px',
+    backgroundColor: colors.incorrectRed,
+    color: colors.white,
+    padding: '0.5rem 1rem',
+    borderRadius: '20px',
+    fontSize: '1rem',
+    fontWeight: 'bold',
+    boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+    textTransform: 'uppercase',
   },
   grid: {
     display: 'grid',
@@ -124,6 +139,34 @@ const styles = {
     padding: '0.5rem 1rem',
     borderRadius: '20px',
   },
+  explanationBtn: {
+    backgroundColor: colors.yellow,
+    color: colors.dark,
+    border: 'none',
+    borderRadius: '50%',
+    width: '50px',
+    height: '50px',
+    fontSize: '1.5rem',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    boxShadow: '0 4px 0 #cc9a06',
+    marginLeft: '1rem',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  explanationBox: {
+    backgroundColor: colors.white,
+    color: colors.dark,
+    width: '100%',
+    maxWidth: '800px',
+    padding: '1.5rem',
+    borderRadius: '8px',
+    marginTop: '1.5rem',
+    fontSize: '1.1rem',
+    lineHeight: '1.5',
+    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+  },
   error: {
     color: colors.incorrectRed,
     backgroundColor: colors.white,
@@ -135,20 +178,31 @@ const styles = {
 };
 
 export default function QuizApp() {
-  const [gameState, setGameState] = useState('home'); // 'home', 'quiz'
+  const [gameState, setGameState] = useState('home');
   const [inputText, setInputText] = useState('');
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [userAnswers, setUserAnswers] = useState({}); // Stores answers as { questionIndex: selectedOptionIndex }
+  const [userAnswers, setUserAnswers] = useState({});
+  const [showExplanation, setShowExplanation] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Strips markdown wrappers in case the AI includes them anyway
+  // Strips markdown wrappers from AI output
   const sanitizeJSON = (input) => {
     let clean = input.trim();
     if (clean.startsWith('```json')) clean = clean.substring(7);
     if (clean.startsWith('```')) clean = clean.substring(3);
     if (clean.endsWith('```')) clean = clean.slice(0, -3);
     return clean.trim();
+  };
+
+  // Fisher-Yates Shuffle Algorithm for unbiased randomization
+  const shuffleArray = (array) => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
   };
 
   const handleStart = () => {
@@ -160,10 +214,12 @@ export default function QuizApp() {
         throw new Error("Input must be a valid JSON array.");
       }
       
-      setQuestions(parsedData);
+      const shuffledQuestions = shuffleArray(parsedData);
+      setQuestions(shuffledQuestions);
       setGameState('quiz');
       setCurrentIndex(0);
       setUserAnswers({});
+      setShowExplanation(false);
       setErrorMsg('');
     } catch (error) {
       setErrorMsg("Invalid JSON format. Check your AI output. Details: " + error.message);
@@ -171,13 +227,22 @@ export default function QuizApp() {
   };
 
   const handleChoiceClick = (optionIndex) => {
-    // Prevent changing answer if already answered
     if (userAnswers[currentIndex] !== undefined) return;
     
     setUserAnswers(prev => ({
       ...prev,
       [currentIndex]: optionIndex
     }));
+  };
+
+  const navigateQuestion = (direction) => {
+    if (direction === 'next') {
+      setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1));
+    } else {
+      setCurrentIndex(Math.max(0, currentIndex - 1));
+    }
+    // Hide explanation when moving to a different question
+    setShowExplanation(false);
   };
 
   const getChoiceStyle = (index, currentQ) => {
@@ -190,10 +255,8 @@ export default function QuizApp() {
       baseStyle = { ...baseStyle, ...styles.choiceDisabled };
       
       if (isCorrectChoice) {
-        // Always reveal correct answer in green
         baseStyle = { ...baseStyle, ...styles.choiceCorrect, opacity: 1 };
       } else if (isUserChoice) {
-        // Highlight wrong user selection in red
         baseStyle = { ...baseStyle, ...styles.choiceIncorrect, opacity: 1 };
       }
     }
@@ -211,7 +274,7 @@ export default function QuizApp() {
     return (
       <div style={styles.page}>
         <h1 style={styles.header}>AI Presentation Quiz Maker</h1>
-        <p style={{ marginBottom: '1rem' }}>Paste your AI-generated JSON below:</p>
+        <p style={{ marginBottom: '1rem' }}>Paste your AI-generated JSON below. Questions will be shuffled automatically.</p>
         
         {errorMsg && <div style={styles.error}>{errorMsg}</div>}
         
@@ -219,7 +282,7 @@ export default function QuizApp() {
           style={styles.inputArea}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder="[\n  {\n    'question': '...',\n    'options': [...],\n    'correctIndex': 0\n  }\n]"
+          placeholder="[\n  {\n    'question': '...',\n    'options': [...],\n    'correctIndex': 0,\n    'isImportant': true,\n    'explanation': '...'\n  }\n]"
         />
         <button style={styles.btnPrimary} onClick={handleStart}>
           Load Quiz
@@ -230,6 +293,7 @@ export default function QuizApp() {
 
   // --- Quiz Screen ---
   const currentQ = questions[currentIndex];
+  const hasAnswered = userAnswers[currentIndex] !== undefined;
   const totalAnswered = Object.keys(userAnswers).length;
 
   return (
@@ -245,6 +309,9 @@ export default function QuizApp() {
       </div>
 
       <div style={styles.card}>
+        {currentQ.isImportant && (
+          <div style={styles.importantBadge}>⭐ High Priority</div>
+        )}
         {currentQ.question}
       </div>
 
@@ -260,10 +327,32 @@ export default function QuizApp() {
         ))}
       </div>
 
+      {/* Explanation Trigger & Box */}
+      {hasAnswered && currentQ.explanation && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1.5rem', width: '100%' }}>
+            <button 
+              style={styles.explanationBtn} 
+              onClick={() => setShowExplanation(!showExplanation)}
+              title="Show Explanation"
+            >
+              ?
+            </button>
+          </div>
+          
+          {showExplanation && (
+            <div style={styles.explanationBox}>
+              <strong>Explanation:</strong> <br/>
+              {currentQ.explanation}
+            </div>
+          )}
+        </>
+      )}
+
       <div style={styles.controls}>
         <button 
           style={{...styles.controlBtn, opacity: currentIndex === 0 ? 0 : 1}} 
-          onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
+          onClick={() => navigateQuestion('back')}
           disabled={currentIndex === 0}
         >
           ◄ Back
@@ -275,7 +364,7 @@ export default function QuizApp() {
 
         <button 
           style={{...styles.controlBtn, opacity: currentIndex === questions.length - 1 ? 0 : 1}} 
-          onClick={() => setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1))}
+          onClick={() => navigateQuestion('next')}
           disabled={currentIndex === questions.length - 1}
         >
           Next ►
