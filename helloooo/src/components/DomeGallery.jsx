@@ -185,8 +185,10 @@ export default function QuizApp() {
       
       const savedQuiz = await res.json();
       setQuizzes([savedQuiz, ...quizzes]);
-      setGameState('home');
       setInputText('');
+      
+      // Start the quiz directly instead of going to the home screen
+      startQuiz(savedQuiz);
     } catch (err) {
       setError("Failed to save. Ensure your AI output is valid JSON and the server is running.");
     } finally {
