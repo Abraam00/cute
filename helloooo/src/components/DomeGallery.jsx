@@ -18,6 +18,39 @@ const colors = {
   gray: '#f2f2f2'
 };
 
+// Inject keyframe animations for login hearts
+const heartStyleSheet = document.createElement('style');
+heartStyleSheet.textContent = `
+  @keyframes floatHeart {
+    0% { transform: translateY(0) scale(1) rotate(0deg); opacity: 1; }
+    50% { opacity: 0.8; }
+    100% { transform: translateY(-100vh) scale(1.3) rotate(25deg); opacity: 0; }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-10px); }
+    40% { transform: translateX(10px); }
+    60% { transform: translateX(-10px); }
+    80% { transform: translateX(10px); }
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+`;
+document.head.appendChild(heartStyleSheet);
+
+const heartPositions = [
+  { left: '5%', bottom: '-10%', delay: '0s', duration: '6s', size: '2rem' },
+  { left: '15%', bottom: '-15%', delay: '1s', duration: '8s', size: '1.5rem' },
+  { left: '30%', bottom: '-10%', delay: '2.5s', duration: '7s', size: '2.5rem' },
+  { left: '50%', bottom: '-12%', delay: '0.5s', duration: '9s', size: '1.8rem' },
+  { left: '65%', bottom: '-10%', delay: '3s', duration: '6.5s', size: '2.2rem' },
+  { left: '80%', bottom: '-15%', delay: '1.5s', duration: '7.5s', size: '1.6rem' },
+  { left: '90%', bottom: '-10%', delay: '4s', duration: '8.5s', size: '2rem' },
+  { left: '42%', bottom: '-12%', delay: '2s', duration: '7s', size: '1.4rem' },
+];
+
 const styles = {
   page: {
     backgroundColor: colors.purple, minHeight: '100vh', display: 'flex', flexDirection: 'column',
@@ -89,7 +122,42 @@ const styles = {
     boxShadow: '0 4px 0 #cc9a06', marginLeft: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center',
   },
   explanationBox: { backgroundColor: colors.white, color: colors.dark, width: '100%', maxWidth: '800px', padding: '1.5rem', borderRadius: '8px', marginTop: '1.5rem', fontSize: '1.1rem', lineHeight: '1.5' },
-  errorMsg: { backgroundColor: colors.incorrectRed, color: colors.white, padding: '1rem', borderRadius: '4px', marginBottom: '1rem' }
+  errorMsg: { backgroundColor: colors.incorrectRed, color: colors.white, padding: '1rem', borderRadius: '4px', marginBottom: '1rem' },
+  // Login page styles
+  loginContainer: {
+    position: 'relative', overflow: 'hidden', backgroundColor: colors.purple, minHeight: '100vh',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    fontFamily: '"Montserrat", "Helvetica Neue", Helvetica, Arial, sans-serif', color: colors.white,
+  },
+  loginBox: {
+    zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem',
+  },
+  loginTitle: {
+    fontSize: '2.8rem', fontWeight: 'bold', textAlign: 'center', marginBottom: '0.5rem',
+  },
+  loginInput: {
+    width: '300px', padding: '1rem 1.5rem', borderRadius: '8px', border: 'none',
+    fontSize: '1.3rem', textAlign: 'center', fontFamily: '"Montserrat", sans-serif',
+    outline: 'none', color: colors.dark,
+  },
+  loginError: {
+    fontSize: '1.2rem', color: colors.incorrectRed, fontWeight: 'bold',
+    backgroundColor: 'rgba(255,255,255,0.15)', padding: '0.5rem 1.5rem', borderRadius: '20px',
+  },
+  // Progress bar styles
+  progressContainer: {
+    display: 'flex', alignItems: 'center', width: '100%', maxWidth: '800px', marginBottom: '1.5rem', gap: '1rem',
+  },
+  progressBar: {
+    display: 'flex', flex: 1, height: '16px', borderRadius: '8px', overflow: 'hidden',
+    backgroundColor: '#3a1070',
+  },
+  progressSegment: {
+    height: '100%', transition: 'background-color 0.3s ease',
+  },
+  progressScore: {
+    fontSize: '1.1rem', fontWeight: 'bold', whiteSpace: 'nowrap', minWidth: '60px', textAlign: 'right',
+  },
 };
 
 const AI_PROMPT_TEXT = `I am going to upload a PowerPoint presentation. Please read the content, including handwritten notes, circled items, and text colors, and generate a multiple-choice quiz.
@@ -101,6 +169,18 @@ High Priority (Test Questions): If a slide contains text like "test question", "
 High Priority (Whole Slide): If a slide says "memorize whole slide", "know the whole slide", or "important", generate comprehensive questions covering the entire slide. Mark "isImportant": true.
 
 Standard Priority: For all other informational slides, generate standard questions and mark "isImportant": false.
+
+Answer Quality Rules (CRITICAL — follow these strictly):
+
+1. ALL OPTIONS MUST BE SIMILAR IN LENGTH. The correct answer should never be noticeably longer or shorter than the wrong answers. If the correct answer is a full sentence, make all distractors full sentences of similar length. If it's a short phrase, keep all options short.
+
+2. DISTRACTORS MUST BE HIGHLY PLAUSIBLE. Wrong answers should sound medically/scientifically accurate and be closely related to the correct concept. Use real terminology from the same domain. A student who didn't study should not be able to guess the answer by elimination.
+
+3. RANDOMIZE the position of the correct answer. Do NOT always place the correct answer at the same index. Distribute correctIndex values (0, 1, 2, 3) roughly evenly across all questions.
+
+4. AVOID "All of the above", "None of the above", or "Both A and B" style options.
+
+5. Make wrong answers reference real concepts from nearby slides or related topics so they feel like genuine alternatives, not obvious filler.
 
 Output Rules:
 Output strictly as a raw JSON object containing a title and an array of questions. Do not include markdown formatting.
@@ -121,7 +201,9 @@ Use this exact schema:
 }`;
 
 export default function QuizApp() {
-  const [gameState, setGameState] = useState('home');
+  const [gameState, setGameState] = useState(() => {
+    return localStorage.getItem('isLoggedIn') === 'true' ? 'home' : 'login';
+  });
   const [quizzes, setQuizzes] = useState([]);
   const [currentQuiz, setCurrentQuiz] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -133,6 +215,11 @@ export default function QuizApp() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+
+  // Login state
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState(false);
+  const [loginShake, setLoginShake] = useState(false);
 
   useEffect(() => {
     fetchQuizzes();
@@ -279,6 +366,70 @@ export default function QuizApp() {
 
   // --- Render ---
 
+  // Login handler
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (loginPassword.trim().toLowerCase() === 'eimo') {
+      localStorage.setItem('isLoggedIn', 'true');
+      setGameState('home');
+      setLoginError(false);
+      setLoginPassword('');
+    } else {
+      setLoginError(true);
+      setLoginShake(true);
+      setLoginPassword('');
+      setTimeout(() => setLoginShake(false), 500);
+    }
+  };
+
+  if (gameState === 'login') {
+    return (
+      <div style={styles.loginContainer}>
+        {/* Floating hearts */}
+        {heartPositions.map((heart, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              left: heart.left,
+              bottom: heart.bottom,
+              fontSize: heart.size,
+              animation: `floatHeart ${heart.duration} ${heart.delay} infinite ease-in`,
+              pointerEvents: 'none',
+              zIndex: 1,
+            }}
+          >
+            ❤️
+          </div>
+        ))}
+
+        <div style={styles.loginBox}>
+          <div style={{ fontSize: '4rem', animation: 'pulse 2s infinite ease-in-out' }}>💖</div>
+          <h1 style={styles.loginTitle}>What's the magic word?</h1>
+          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+            <input
+              type="text"
+              value={loginPassword}
+              onChange={(e) => { setLoginPassword(e.target.value); setLoginError(false); }}
+              style={{
+                ...styles.loginInput,
+                animation: loginShake ? 'shake 0.5s ease' : 'none',
+              }}
+              placeholder="Type here..."
+              autoFocus
+            />
+            <button type="submit" style={{ ...styles.btnPrimary, animation: 'pulse 2s infinite ease-in-out' }}>
+              💕 Enter 💕
+            </button>
+          </form>
+          {loginError && (
+            <div style={styles.loginError}>Try again 💔</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (gameState === 'home') {
     return (
       <div style={styles.page}>
@@ -351,11 +502,49 @@ export default function QuizApp() {
   const qId = currentQ?.id;
   const hasAnswered = userAnswers[qId] !== undefined;
 
+  // Compute progress bar data
+  const totalQuestions = currentQuiz.questions.length;
+  const correctCount = currentQuiz.questions.filter(q => {
+    const answer = userAnswers[q.id];
+    return answer !== undefined && answer === q.correctIndex;
+  }).length;
+
   return (
     <div style={styles.page}>
       <div style={{...styles.controls, marginTop: 0, marginBottom: '2rem'}}>
         <button style={styles.controlBtn} onClick={() => { setGameState('home'); fetchQuizzes(); }}>◄ Back to Home</button>
         <button style={styles.btnWarning} onClick={handleResetQuiz}>↻ Reset Quiz</button>
+      </div>
+
+      {/* Progress Bar + Score */}
+      <div style={styles.progressContainer}>
+        <div style={styles.progressBar}>
+          {currentQuiz.questions.map((q, i) => {
+            const answer = userAnswers[q.id];
+            let segColor = '#555'; // unanswered - dark gray
+            if (answer !== undefined) {
+              segColor = answer === q.correctIndex ? colors.correctGreen : colors.incorrectRed;
+            }
+            return (
+              <div
+                key={q.id || i}
+                style={{
+                  ...styles.progressSegment,
+                  flex: 1,
+                  backgroundColor: segColor,
+                  borderRight: i < totalQuestions - 1 ? '1px solid rgba(0,0,0,0.2)' : 'none',
+                  outline: i === currentIndex ? '2px solid white' : 'none',
+                  outlineOffset: '-1px',
+                  position: 'relative',
+                  zIndex: i === currentIndex ? 1 : 0,
+                }}
+              />
+            );
+          })}
+        </div>
+        <div style={styles.progressScore}>
+          {correctCount}/{totalQuestions}
+        </div>
       </div>
 
       <div style={styles.card}>
