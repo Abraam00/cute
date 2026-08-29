@@ -162,47 +162,61 @@ const styles = {
 
 const AI_PROMPT_TEXT = `I am going to upload a PowerPoint presentation. Please read the content, including handwritten notes, circled items, and text colors, and generate a multiple-choice quiz.
 
-Content Priority Rules:
+========================
+CONTENT PRIORITY RULES:
+========================
+1. High Priority (Test Questions): If a slide contains text like "test question", "test q", "on the test", is circled, or is written in red, mark "isImportant": true. Generate 2-3 thorough questions for this concept.
+2. High Priority (Whole Slide): If a slide says "memorize whole slide", "know the whole slide", or "important", generate comprehensive questions covering the entire slide. Mark "isImportant": true.
+3. Standard Priority: For all other informational slides, generate standard questions and mark "isImportant": false.
 
-High Priority (Test Questions): If a slide contains text like "test question", "test q", "on the test", is circled, or is written in red, mark "isImportant": true. Generate 2-3 thorough questions for this concept.
+===============================================
+ANSWER QUALITY RULES (CRITICAL - STRICTLY FOLLOW):
+===============================================
+1. ALL OPTIONS MUST BE SIMILAR IN LENGTH. The correct answer must NEVER be noticeably longer or shorter than the wrong answers. If the correct answer is a sentence, make all 4 choices sentences of similar length.
+2. DISTRACTORS MUST BE HIGHLY PLAUSIBLE. Use real medical/scientific terminology from the subject. Wrong answers must feel authentic so students cannot guess by elimination.
+3. RANDOMIZE THE CORRECT ANSWER POSITION. Do not always place the correct answer first. Distribute correctIndex (0, 1, 2, 3) evenly across all questions.
+4. DO NOT USE "All of the above", "None of the above", or "Both A and B".
+5. Distractors should reference real concepts from adjacent slides or topics.
 
-High Priority (Whole Slide): If a slide says "memorize whole slide", "know the whole slide", or "important", generate comprehensive questions covering the entire slide. Mark "isImportant": true.
+====================================================
+FORMATTING & SYNTAX RULES (CRITICAL FOR PARSER):
+====================================================
+1. OUTPUT RAW JSON ONLY. Do NOT write any conversational text before or after the JSON (e.g. no "Here is your quiz:", no notes, no commentary).
+2. DO NOT USE UNESCAPED DOUBLE QUOTES inside questions, options, or explanations. If you need quotes inside text, use single quotes (e.g. 'like this') or escape them (\\"like this\\").
+3. DO NOT INCLUDE TRAILING COMMAS after the last item in arrays or objects.
+4. NO COMMENTS. Do not include // or /* */ comments inside the JSON.
+5. NO RAW LINE BREAKS inside string values. Keep each string on a single line.
+6. DATA TYPES:
+   - "correctIndex" MUST be an integer: 0, 1, 2, or 3 (NOT a string, NOT a letter like "A").
+   - "isImportant" MUST be a boolean: true or false (NOT a string "true").
+   - "options" MUST be an array of exactly 4 strings.
+   - "id" MUST be a unique string (e.g. "q_1", "q_2", ...).
 
-Standard Priority: For all other informational slides, generate standard questions and mark "isImportant": false.
-
-Answer Quality Rules (CRITICAL — follow these strictly):
-
-1. ALL OPTIONS MUST BE SIMILAR IN LENGTH. The correct answer should never be noticeably longer or shorter than the wrong answers. If the correct answer is a full sentence, make all distractors full sentences of similar length. If it's a short phrase, keep all options short.
-
-2. DISTRACTORS MUST BE HIGHLY PLAUSIBLE. Wrong answers should sound medically/scientifically accurate and be closely related to the correct concept. Use real terminology from the same domain. A student who didn't study should not be able to guess the answer by elimination.
-
-3. RANDOMIZE the position of the correct answer. Do NOT always place the correct answer at the same index. Distribute correctIndex values (0, 1, 2, 3) roughly evenly across all questions.
-
-4. AVOID "All of the above", "None of the above", or "Both A and B" style options.
-
-5. Make wrong answers reference real concepts from nearby slides or related topics so they feel like genuine alternatives, not obvious filler.
-
-Output Rules:
-Output strictly as a raw JSON object containing a title and an array of questions. Do not include markdown formatting.
-
-Use this exact schema:
+JSON SCHEMA TO PRODUCE:
 {
-"title": "A short, descriptive title based on the presentation topic",
-"questions": [
-{
-"id": "A unique string ID for this question (e.g., q_1, q_2)",
-"question": "Insert question text here",
-"options": ["Option 1", "Option 2", "Option 3", "Option 4"],
-"correctIndex": 0,
-"isImportant": true,
-"explanation": "Explain exactly why this answer is correct based on the slide content."
-}
-]
+  "title": "A short, descriptive title based on the presentation topic",
+  "questions": [
+    {
+      "id": "q_1",
+      "question": "Insert question text here (use single quotes 'term' for inner quotes)",
+      "options": [
+        "First choice",
+        "Second choice",
+        "Third choice",
+        "Fourth choice"
+      ],
+      "correctIndex": 0,
+      "isImportant": true,
+      "explanation": "Explain why this answer is correct based on the presentation."
+    }
+  ]
 }`;
 
 export default function QuizApp() {
   const [gameState, setGameState] = useState(() => {
-    return localStorage.getItem('isLoggedIn') === 'true' ? 'home' : 'login';
+    // Clear any legacy localStorage value
+    localStorage.removeItem('isLoggedIn');
+    return sessionStorage.getItem('isLoggedIn') === 'true' ? 'home' : 'login';
   });
   const [quizzes, setQuizzes] = useState([]);
   const [currentQuiz, setCurrentQuiz] = useState(null);
@@ -253,13 +267,70 @@ export default function QuizApp() {
   const handleSaveNewQuiz = async () => {
     setSaving(true);
     setError('');
+
+    if (!inputText.trim()) {
+      setError('Please paste the AI output JSON into the text box.');
+      setSaving(false);
+      return;
+    }
+
+    let parsedData;
     try {
-      let clean = inputText.trim();
-      if (clean.startsWith('```json')) clean = clean.substring(7);
-      if (clean.startsWith('```')) clean = clean.substring(3);
-      if (clean.endsWith('```')) clean = clean.slice(0, -3);
-      
-      const parsedData = JSON.parse(clean.trim());
+      let text = inputText.trim();
+
+      // If wrapped in code blocks, strip them or find the outermost JSON object
+      const firstBrace = text.indexOf('{');
+      const lastBrace = text.lastIndexOf('}');
+
+      if (firstBrace === -1 || lastBrace === -1 || firstBrace >= lastBrace) {
+        throw new Error('No JSON object found. Please make sure the output starts with "{" and ends with "}".');
+      }
+
+      let jsonString = text.substring(firstBrace, lastBrace + 1);
+
+      // Clean up common AI json quirks: comments & trailing commas
+      const cleanJsonString = jsonString
+        .replace(/\/\*[\s\S]*?\*\//g, '') // remove multi-line comments
+        .replace(/\/\/.*/g, '')            // remove single-line comments
+        .replace(/,\s*}/g, '}')           // remove trailing commas in objects
+        .replace(/,\s*]/g, ']');          // remove trailing commas in arrays
+
+      try {
+        parsedData = JSON.parse(jsonString);
+      } catch {
+        // Fallback to cleaned version
+        parsedData = JSON.parse(cleanJsonString);
+      }
+
+      if (!parsedData.title || !Array.isArray(parsedData.questions)) {
+        throw new Error('JSON is missing required "title" or "questions" array.');
+      }
+
+      // Normalize question data (convert letter index "A" -> 0, boolean string "true" -> true, ensure id)
+      parsedData.questions = parsedData.questions.map((q, idx) => {
+        let correctIdx = q.correctIndex;
+        if (typeof correctIdx === 'string') {
+          const map = { a: 0, b: 1, c: 2, d: 3 };
+          correctIdx = map[correctIdx.toLowerCase()] !== undefined ? map[correctIdx.toLowerCase()] : parseInt(correctIdx, 10);
+        }
+        if (isNaN(correctIdx) || correctIdx === undefined) correctIdx = 0;
+
+        return {
+          ...q,
+          id: q.id || `q_${idx + 1}`,
+          correctIndex: correctIdx,
+          isImportant: q.isImportant === true || q.isImportant === 'true',
+          options: Array.isArray(q.options) ? q.options : []
+        };
+      });
+    } catch (parseErr) {
+      console.error('JSON parsing failed:', parseErr);
+      setError(`Invalid JSON format: ${parseErr.message}`);
+      setSaving(false);
+      return;
+    }
+
+    try {
       parsedData.userAnswers = {};
 
       const res = await fetch(`${API_BASE_URL}/quizzes`, {
@@ -268,16 +339,20 @@ export default function QuizApp() {
         body: JSON.stringify(parsedData)
       });
 
-      if (!res.ok) throw new Error('Failed to save to database');
-      
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        throw new Error(`Server returned status ${res.status}: ${errBody || res.statusText}`);
+      }
+
       const savedQuiz = await res.json();
       setQuizzes([savedQuiz, ...quizzes]);
       setInputText('');
-      
-      // Start the quiz directly instead of going to the home screen
+
+      // Start the quiz directly
       startQuiz(savedQuiz);
-    } catch (err) {
-      setError("Failed to save. Ensure your AI output is valid JSON and the server is running.");
+    } catch (apiErr) {
+      console.error('API call failed:', apiErr);
+      setError(`Failed to save quiz to server: ${apiErr.message}`);
     } finally {
       setSaving(false);
     }
@@ -370,7 +445,7 @@ export default function QuizApp() {
   const handleLogin = (e) => {
     e.preventDefault();
     if (loginPassword.trim().toLowerCase() === 'eimo') {
-      localStorage.setItem('isLoggedIn', 'true');
+      sessionStorage.setItem('isLoggedIn', 'true');
       setGameState('home');
       setLoginError(false);
       setLoginPassword('');
