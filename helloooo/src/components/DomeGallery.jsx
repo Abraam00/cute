@@ -153,7 +153,7 @@ const styles = {
     backgroundColor: '#3a1070',
   },
   progressSegment: {
-    height: '100%', transition: 'background-color 0.3s ease',
+    height: '100%', transition: 'background-color 0.3s ease', cursor: 'pointer',
   },
   progressScore: {
     fontSize: '1.1rem', fontWeight: 'bold', whiteSpace: 'nowrap', minWidth: '60px', textAlign: 'right',
@@ -603,6 +603,11 @@ export default function QuizApp() {
             return (
               <div
                 key={q.id || i}
+                onClick={() => {
+                  setCurrentIndex(i);
+                  setShowExplanation(false);
+                }}
+                title={`Question ${i + 1}${answer !== undefined ? (answer === q.correctIndex ? ' (Correct)' : ' (Incorrect)') : ''}`}
                 style={{
                   ...styles.progressSegment,
                   flex: 1,
