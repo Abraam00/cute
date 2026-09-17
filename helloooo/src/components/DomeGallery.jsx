@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 
 // --- API Configuration ---
-const API_BASE_URL = 'https://quiz-backend-6hgf.onrender.com/api'
+const API_BASE_URL = 'https://quiz-backend-6hgf.onrender.com/api';
 const API_HEADERS = {
   'Content-Type': 'application/json'
 };
 
 const colors = {
   purple: '#46178f',
+  darkPurple: '#2d0e5c',
+  cardPurple: '#5a22b0',
   green: '#26890c',
   blue: '#1368ce',
   correctGreen: '#66bf39',
@@ -15,10 +17,12 @@ const colors = {
   white: '#ffffff',
   dark: '#333333',
   yellow: '#ffc107',
-  gray: '#f2f2f2'
+  gray: '#f2f2f2',
+  lightGray: '#e0e0e0',
+  darkGray: '#555555'
 };
 
-// Inject keyframe animations for login hearts
+// Inject keyframe animations for login hearts and UI feedback
 const heartStyleSheet = document.createElement('style');
 heartStyleSheet.textContent = `
   @keyframes floatHeart {
@@ -35,7 +39,7 @@ heartStyleSheet.textContent = `
   }
   @keyframes pulse {
     0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
+    50% { transform: scale(1.08); }
   }
 `;
 document.head.appendChild(heartStyleSheet);
@@ -54,47 +58,73 @@ const heartPositions = [
 const styles = {
   page: {
     backgroundColor: colors.purple, minHeight: '100vh', display: 'flex', flexDirection: 'column',
-    alignItems: 'center', padding: '2rem', fontFamily: '"Montserrat", "Helvetica Neue", Helvetica, Arial, sans-serif',
-    color: colors.white,
+    alignItems: 'center', padding: '2rem 1rem', fontFamily: '"Montserrat", "Helvetica Neue", Helvetica, Arial, sans-serif',
+    color: colors.white, boxSizing: 'border-box',
   },
-  header: { fontSize: '2.5rem', fontWeight: 'bold', marginBottom: '2rem', textAlign: 'center' },
+  header: { fontSize: '2.5rem', fontWeight: 'bold', marginBottom: '1.5rem', textAlign: 'center' },
+  subHeader: { fontSize: '1.2rem', opacity: 0.9, marginBottom: '2rem', textAlign: 'center' },
+  sectionTitle: {
+    fontSize: '1.8rem', fontWeight: 'bold', margin: '2rem 0 1rem 0', width: '100%',
+    maxWidth: '1000px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    borderBottom: '2px solid rgba(255,255,255,0.2)', paddingBottom: '0.5rem'
+  },
   grid: {
-    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem',
-    width: '100%', maxWidth: '1000px', marginBottom: '2rem'
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1.5rem',
+    width: '100%', maxWidth: '1000px', marginBottom: '1.5rem'
   },
-  quizSquare: {
-    backgroundColor: colors.white, color: colors.dark, padding: '2rem 1rem', borderRadius: '8px',
-    textAlign: 'center', fontSize: '1.4rem', fontWeight: 'bold', cursor: 'pointer',
-    boxShadow: '0 6px 0 #cccccc', transition: 'transform 0.1s', display: 'flex',
-    alignItems: 'center', justifyContent: 'center', minHeight: '150px', position: 'relative'
+  cardSquare: {
+    backgroundColor: colors.white, color: colors.dark, padding: '2rem 1.2rem', borderRadius: '12px',
+    textAlign: 'center', fontSize: '1.3rem', fontWeight: 'bold', cursor: 'pointer',
+    boxShadow: '0 6px 0 #cccccc', transition: 'transform 0.15s, box-shadow 0.15s', display: 'flex',
+    flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '140px', position: 'relative'
+  },
+  testCardSquare: {
+    backgroundColor: '#fff8e1', color: colors.dark, padding: '2rem 1.2rem', borderRadius: '12px',
+    textAlign: 'center', fontSize: '1.3rem', fontWeight: 'bold', cursor: 'pointer',
+    boxShadow: '0 6px 0 #ffd54f', transition: 'transform 0.15s, box-shadow 0.15s', display: 'flex',
+    flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '140px', position: 'relative',
+    border: '2px solid #ffc107'
+  },
+  cardSubtext: {
+    fontSize: '0.95rem', fontWeight: 'normal', color: '#666666', marginTop: '0.5rem'
   },
   deleteBtn: {
     position: 'absolute', top: '10px', right: '10px', backgroundColor: colors.incorrectRed,
-    color: colors.white, border: 'none', borderRadius: '50%', width: '30px', height: '30px',
+    color: colors.white, border: 'none', borderRadius: '50%', width: '28px', height: '28px',
     cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', boxShadow: '0 3px 0 #b3243b', fontSize: '1rem'
+    justifyContent: 'center', boxShadow: '0 3px 0 #b3243b', fontSize: '0.9rem', zIndex: 3
   },
   btnPrimary: {
-    backgroundColor: colors.green, color: colors.white, border: 'none', padding: '1rem 2.5rem',
-    fontSize: '1.2rem', fontWeight: 'bold', borderRadius: '4px', cursor: 'pointer', boxShadow: '0 4px 0 #1a5c08',
+    backgroundColor: colors.green, color: colors.white, border: 'none', padding: '0.9rem 2rem',
+    fontSize: '1.1rem', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', boxShadow: '0 4px 0 #1a5c08',
+    transition: 'opacity 0.2s',
+  },
+  btnSecondary: {
+    backgroundColor: colors.blue, color: colors.white, border: 'none', padding: '0.9rem 2rem',
+    fontSize: '1.1rem', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', boxShadow: '0 4px 0 #0d468a',
+  },
+  btnYellow: {
+    backgroundColor: colors.yellow, color: colors.dark, border: 'none', padding: '0.9rem 2rem',
+    fontSize: '1.1rem', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', boxShadow: '0 4px 0 #cc9a06',
   },
   btnWarning: {
     backgroundColor: colors.incorrectRed, color: colors.white, border: 'none', padding: '0.8rem 1.5rem',
-    fontSize: '1rem', fontWeight: 'bold', borderRadius: '4px', cursor: 'pointer',
+    fontSize: '1rem', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', boxShadow: '0 4px 0 #b3243b'
   },
   copyBtn: {
-    backgroundColor: colors.blue, color: colors.white, border: 'none', padding: '0.8rem 1.5rem',
-    fontSize: '1rem', fontWeight: 'bold', borderRadius: '4px', cursor: 'pointer', marginBottom: '1rem',
-    boxShadow: '0 4px 0 #0d468a', transition: 'background-color 0.2s ease',
+    backgroundColor: colors.blue, color: colors.white, border: 'none', padding: '0.8rem 1.2rem',
+    fontSize: '0.95rem', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer',
+    boxShadow: '0 4px 0 #0d468a', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', gap: '0.5rem'
   },
   inputArea: {
-    width: '100%', maxWidth: '700px', height: '350px', padding: '1rem', borderRadius: '8px',
-    border: 'none', fontSize: '1rem', marginBottom: '1rem', fontFamily: 'monospace', resize: 'vertical',
+    width: '100%', maxWidth: '750px', height: '320px', padding: '1rem', borderRadius: '8px',
+    border: 'none', fontSize: '1rem', marginBottom: '1.5rem', fontFamily: 'monospace', resize: 'vertical',
+    boxSizing: 'border-box'
   },
   card: {
     backgroundColor: colors.green, width: '100%', maxWidth: '800px', padding: '3rem 2rem',
-    borderRadius: '8px', textAlign: 'center', fontSize: '1.8rem', fontWeight: 'bold',
-    boxShadow: '0 4px 0 #1a5c08', marginBottom: '2rem', position: 'relative',
+    borderRadius: '12px', textAlign: 'center', fontSize: '1.8rem', fontWeight: 'bold',
+    boxShadow: '0 4px 0 #1a5c08', marginBottom: '2rem', position: 'relative', boxSizing: 'border-box'
   },
   importantBadge: {
     position: 'absolute', top: '-15px', right: '-15px', backgroundColor: colors.incorrectRed,
@@ -107,22 +137,23 @@ const styles = {
   },
   choice: {
     backgroundColor: colors.blue, color: colors.white, padding: '1.5rem', fontSize: '1.2rem',
-    fontWeight: 'bold', border: 'none', borderRadius: '4px', cursor: 'pointer',
+    fontWeight: 'bold', border: 'none', borderRadius: '8px', cursor: 'pointer',
     boxShadow: '0 4px 0 #0d468a', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    textAlign: 'center', minHeight: '120px',
+    textAlign: 'center', minHeight: '110px',
   },
   choiceCorrect: { backgroundColor: colors.correctGreen, boxShadow: '0 4px 0 #4a8c29' },
   choiceIncorrect: { backgroundColor: colors.incorrectRed, boxShadow: '0 4px 0 #b3243b' },
   choiceDisabled: { opacity: 0.6, cursor: 'not-allowed' },
-  controls: { display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: '800px', marginTop: '2rem', alignItems: 'center' },
-  controlBtn: { backgroundColor: colors.dark, color: colors.white, border: 'none', padding: '0.8rem 1.5rem', fontSize: '1rem', fontWeight: 'bold', borderRadius: '4px', cursor: 'pointer' },
+  controls: { display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: '800px', marginTop: '2rem', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' },
+  controlBtn: { backgroundColor: colors.dark, color: colors.white, border: 'none', padding: '0.8rem 1.5rem', fontSize: '1rem', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer' },
   explanationBtn: {
     backgroundColor: colors.yellow, color: colors.dark, border: 'none', borderRadius: '50%',
     width: '50px', height: '50px', fontSize: '1.5rem', fontWeight: 'bold', cursor: 'pointer',
     boxShadow: '0 4px 0 #cc9a06', marginLeft: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center',
   },
-  explanationBox: { backgroundColor: colors.white, color: colors.dark, width: '100%', maxWidth: '800px', padding: '1.5rem', borderRadius: '8px', marginTop: '1.5rem', fontSize: '1.1rem', lineHeight: '1.5' },
-  errorMsg: { backgroundColor: colors.incorrectRed, color: colors.white, padding: '1rem', borderRadius: '4px', marginBottom: '1rem' },
+  explanationBox: { backgroundColor: colors.white, color: colors.dark, width: '100%', maxWidth: '800px', padding: '1.5rem', borderRadius: '8px', marginTop: '1.5rem', fontSize: '1.1rem', lineHeight: '1.5', boxSizing: 'border-box' },
+  errorMsg: { backgroundColor: colors.incorrectRed, color: colors.white, padding: '1rem', borderRadius: '8px', marginBottom: '1rem', maxWidth: '800px', width: '100%', textAlign: 'center', boxSizing: 'border-box' },
+  
   // Login page styles
   loginContainer: {
     position: 'relative', overflow: 'hidden', backgroundColor: colors.purple, minHeight: '100vh',
@@ -144,6 +175,7 @@ const styles = {
     fontSize: '1.2rem', color: colors.incorrectRed, fontWeight: 'bold',
     backgroundColor: 'rgba(255,255,255,0.15)', padding: '0.5rem 1.5rem', borderRadius: '20px',
   },
+  
   // Progress bar styles
   progressContainer: {
     display: 'flex', alignItems: 'center', width: '100%', maxWidth: '800px', marginBottom: '1.5rem', gap: '1rem',
@@ -158,9 +190,39 @@ const styles = {
   progressScore: {
     fontSize: '1.1rem', fontWeight: 'bold', whiteSpace: 'nowrap', minWidth: '60px', textAlign: 'right',
   },
+
+  // Modal styles
+  modalOverlay: {
+    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '1rem'
+  },
+  modalContent: {
+    backgroundColor: colors.white, color: colors.dark, padding: '2rem', borderRadius: '12px',
+    maxWidth: '500px', width: '100%', display: 'flex', flexDirection: 'column', gap: '1.2rem',
+    boxShadow: '0 10px 25px rgba(0,0,0,0.3)', boxSizing: 'border-box'
+  },
+  textInput: {
+    padding: '0.9rem 1.2rem', borderRadius: '8px', border: '2px solid #ddd', fontSize: '1.1rem',
+    outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit'
+  },
+
+  // Test config styles
+  configCard: {
+    backgroundColor: colors.white, color: colors.dark, borderRadius: '12px', padding: '2rem',
+    width: '100%', maxWidth: '750px', display: 'flex', flexDirection: 'column', gap: '1.5rem',
+    boxShadow: '0 6px 0 #cccccc', boxSizing: 'border-box', marginBottom: '2rem'
+  },
+  quizConfigRow: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.8rem 0',
+    borderBottom: '1px solid #eee', gap: '1rem'
+  },
+  numberInput: {
+    width: '80px', padding: '0.6rem', borderRadius: '6px', border: '2px solid #ccc',
+    fontSize: '1.1rem', textAlign: 'center', fontWeight: 'bold'
+  }
 };
 
-const AI_PROMPT_TEXT = `I am going to upload a PowerPoint presentation. Please read the content, including handwritten notes, circled items, and text colors, and generate a multiple-choice quiz.
+const PPTX_AI_PROMPT_TEXT = `I am going to upload a PowerPoint presentation. Please read the content, including handwritten notes, circled items, and text colors, and generate a multiple-choice quiz.
 
 ========================
 CONTENT PRIORITY RULES:
@@ -212,12 +274,61 @@ JSON SCHEMA TO PRODUCE:
   ]
 }`;
 
+// PDF AI Prompt
+const PDF_AI_PROMPT_TEXT = `You are a precision data extraction assistant. Your task is to process a multiple-choice quiz document (including its trailing answer key) and convert the content into a single, perfectly valid JSON object.
+
+### INSTRUCTIONS:
+1. Parse every question and its 4 options (A, B, C, D).
+2. Cross-reference each question with the answer key provided at the end of the document.
+3. Convert answer letters to zero-based integer indices: A = 0, B = 1, C = 2, D = 3.
+4. Synthesize a concise, 1-2 sentence explanation clarifying why the correct answer is right.
+5. Set "isImportant" to true for foundational, high-yield, or key concepts, and false for niche facts.
+6. Strictly enforce all syntax constraints below.
+
+### STRICT SYNTAX & FORMATTING RULES:
+1. OUTPUT RAW JSON ONLY: Do not write any conversational text, notes, markdown intro text, or post-processing commentary. Start your response with { and end with }.
+2. INNER QUOTES: Never use unescaped double quotes inside strings. Convert all internal double quotes to single quotes (e.g., write 'term' instead of "term").
+3. NO TRAILING COMMAS: Ensure there are no trailing commas after the final element in any array or object.
+4. NO COMMENTS: Do not include // or /* */ comments inside the JSON output.
+5. SINGLE-LINE STRINGS: Do not put raw line breaks inside string values. Keep each string on one continuous line.
+6. DATA TYPE INTEGRITY:
+   - "id": String (e.g., "q_1", "q_2")
+   - "question": String
+   - "options": Array containing EXACTLY 4 Strings
+   - "correctIndex": Integer (0, 1, 2, or 3 only — NOT string "0" or letter "A")
+   - "isImportant": Boolean (literal true or false — NOT string "true")
+   - "explanation": String
+
+### EXPECTED JSON SCHEMA:
+{
+  "title": "A short, descriptive title based on the document content",
+  "questions": [
+    {
+      "id": "q_1",
+      "question": "Question text here (use single quotes 'like this' for inner text)",
+      "options": [
+        "First option",
+        "Second option",
+        "Third option",
+        "Fourth option"
+      ],
+      "correctIndex": 0,
+      "isImportant": true,
+      "explanation": "Concise, factual explanation supporting the correct answer index."
+    }
+  ]
+}
+`;
+
 export default function QuizApp() {
   const [gameState, setGameState] = useState(() => {
     // Clear any legacy localStorage value
     localStorage.removeItem('isLoggedIn');
     return sessionStorage.getItem('isLoggedIn') === 'true' ? 'home' : 'login';
   });
+
+  const [classes, setClasses] = useState([]);
+  const [selectedClass, setSelectedClass] = useState(null);
   const [quizzes, setQuizzes] = useState([]);
   const [currentQuiz, setCurrentQuiz] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -228,16 +339,39 @@ export default function QuizApp() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [copiedPptx, setCopiedPptx] = useState(false);
+  const [copiedPdf, setCopiedPdf] = useState(false);
 
   // Login state
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState(false);
   const [loginShake, setLoginShake] = useState(false);
 
+  // Create Class Modal state
+  const [showClassModal, setShowClassModal] = useState(false);
+  const [newClassName, setNewClassName] = useState('');
+
+  // Test Generator Config state
+  const [testTotalQuestions, setTestTotalQuestions] = useState(40);
+  const [testQuizCounts, setTestQuizCounts] = useState({});
+  const [testTitle, setTestTitle] = useState('');
+
   useEffect(() => {
+    fetchClasses();
     fetchQuizzes();
   }, []);
+
+  const fetchClasses = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/classes`);
+      if (res.ok) {
+        const data = await res.json();
+        setClasses(data);
+      }
+    } catch (err) {
+      console.error('Could not load classes:', err);
+    }
+  };
 
   const fetchQuizzes = async () => {
     setLoading(true);
@@ -254,14 +388,68 @@ export default function QuizApp() {
     }
   };
 
-  const handleCopyPrompt = () => {
-    navigator.clipboard.writeText(AI_PROMPT_TEXT).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  const handleCopyPptxPrompt = () => {
+    navigator.clipboard.writeText(PPTX_AI_PROMPT_TEXT).then(() => {
+      setCopiedPptx(true);
+      setTimeout(() => setCopiedPptx(false), 2000);
     }).catch(err => {
       console.error('Failed to copy text: ', err);
-      setError('Failed to copy to clipboard. Please copy manually.');
+      setError('Failed to copy to clipboard.');
     });
+  };
+
+  const handleCopyPdfPrompt = () => {
+    navigator.clipboard.writeText(PDF_AI_PROMPT_TEXT).then(() => {
+      setCopiedPdf(true);
+      setTimeout(() => setCopiedPdf(false), 2000);
+    }).catch(err => {
+      console.error('Failed to copy text: ', err);
+      setError('Failed to copy to clipboard.');
+    });
+  };
+
+  const handleCreateClass = async (e) => {
+    e.preventDefault();
+    if (!newClassName.trim()) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/classes`, {
+        method: 'POST',
+        headers: API_HEADERS,
+        body: JSON.stringify({ name: newClassName.trim() })
+      });
+
+      if (!res.ok) throw new Error('Failed to create class');
+      const savedClass = await res.json();
+      setClasses([savedClass, ...classes]);
+      setNewClassName('');
+      setShowClassModal(false);
+    } catch (err) {
+      setError('Failed to create class. Please try again.');
+    }
+  };
+
+  const handleDeleteClass = async (e, classId) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this class? This will delete ALL quizzes and tests inside it!")) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/classes/${classId}`, {
+        method: 'DELETE',
+        headers: API_HEADERS
+      });
+
+      if (!res.ok) throw new Error('Failed to delete class');
+
+      setClasses(classes.filter(c => c._id !== classId));
+      setQuizzes(quizzes.filter(q => q.classId !== classId));
+      if (selectedClass && selectedClass._id === classId) {
+        setSelectedClass(null);
+        setGameState('home');
+      }
+    } catch (err) {
+      setError('Failed to delete class.');
+    }
   };
 
   const handleSaveNewQuiz = async () => {
@@ -277,8 +465,6 @@ export default function QuizApp() {
     let parsedData;
     try {
       let text = inputText.trim();
-
-      // If wrapped in code blocks, strip them or find the outermost JSON object
       const firstBrace = text.indexOf('{');
       const lastBrace = text.lastIndexOf('}');
 
@@ -298,7 +484,6 @@ export default function QuizApp() {
       try {
         parsedData = JSON.parse(jsonString);
       } catch {
-        // Fallback to cleaned version
         parsedData = JSON.parse(cleanJsonString);
       }
 
@@ -306,7 +491,7 @@ export default function QuizApp() {
         throw new Error('JSON is missing required "title" or "questions" array.');
       }
 
-      // Normalize question data (convert letter index "A" -> 0, boolean string "true" -> true, ensure id)
+      // Normalize question data
       parsedData.questions = parsedData.questions.map((q, idx) => {
         let correctIdx = q.correctIndex;
         if (typeof correctIdx === 'string') {
@@ -332,6 +517,8 @@ export default function QuizApp() {
 
     try {
       parsedData.userAnswers = {};
+      parsedData.classId = selectedClass && selectedClass._id !== 'uncategorized' ? selectedClass._id : null;
+      parsedData.isTest = false;
 
       const res = await fetch(`${API_BASE_URL}/quizzes`, {
         method: 'POST',
@@ -360,7 +547,7 @@ export default function QuizApp() {
 
   const handleDeleteQuiz = async (e, id) => {
     e.stopPropagation(); 
-    if (!window.confirm("Are you sure you want to delete this quiz? This cannot be undone.")) return;
+    if (!window.confirm("Are you sure you want to delete this? This cannot be undone.")) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/quizzes/${id}`, {
@@ -372,7 +559,7 @@ export default function QuizApp() {
       
       setQuizzes(quizzes.filter(quiz => quiz._id !== id));
     } catch (err) {
-      setError("Failed to delete quiz. Ensure backend is running.");
+      setError("Failed to delete. Ensure backend is running.");
     }
   };
 
@@ -398,7 +585,7 @@ export default function QuizApp() {
   };
 
   const startQuiz = (quiz) => {
-    const shuffledQuestions = shuffleArray(quiz.questions);
+    const shuffledQuestions = shuffleArray(quiz.questions || []);
     setCurrentQuiz({ ...quiz, questions: shuffledQuestions });
     setUserAnswers(quiz.userAnswers || {});
     setCurrentIndex(0);
@@ -412,15 +599,153 @@ export default function QuizApp() {
     
     const updatedAnswers = { ...userAnswers, [qId]: optionIndex };
     setUserAnswers(updatedAnswers);
-    saveProgressToDB(currentQuiz._id, updatedAnswers);
+    if (currentQuiz._id) {
+      saveProgressToDB(currentQuiz._id, updatedAnswers);
+    }
   };
 
   const handleResetQuiz = () => {
-    if(window.confirm("Are you sure you want to clear your previous answers and retake this quiz?")) {
+    if (window.confirm("Are you sure you want to clear your previous answers and retake this?")) {
       setUserAnswers({});
-      saveProgressToDB(currentQuiz._id, {});
+      if (currentQuiz._id) {
+        saveProgressToDB(currentQuiz._id, {});
+      }
       setCurrentIndex(0);
       setShowExplanation(false);
+    }
+  };
+
+  // --- Test Generation Helpers ---
+  const openTestConfig = () => {
+    const classQuizzes = quizzes.filter(q => 
+      (selectedClass._id === 'uncategorized' ? !q.classId : q.classId === selectedClass._id) && !q.isTest
+    );
+
+    if (classQuizzes.length === 0) {
+      setError('Please add at least one quiz to this class before generating a test.');
+      return;
+    }
+
+    const totalAvailable = classQuizzes.reduce((sum, q) => sum + (q.questions ? q.questions.length : 0), 0);
+    const targetTotal = Math.min(40, totalAvailable);
+    setTestTotalQuestions(targetTotal);
+    setTestTitle(`${selectedClass.name} - Test (${targetTotal} Questions)`);
+
+    // Calculate even split
+    calculateEvenSplit(classQuizzes, targetTotal);
+    setGameState('testConfig');
+  };
+
+  const calculateEvenSplit = (classQuizzes, targetTotal) => {
+    const numQuizzes = classQuizzes.length;
+    if (numQuizzes === 0) return;
+
+    let remaining = targetTotal;
+    const counts = {};
+
+    // Initial base count per quiz
+    const baseShare = Math.floor(targetTotal / numQuizzes);
+    let extra = targetTotal % numQuizzes;
+
+    classQuizzes.forEach((q, idx) => {
+      const available = q.questions ? q.questions.length : 0;
+      let count = baseShare + (idx < extra ? 1 : 0);
+      counts[q._id] = Math.min(count, available);
+      remaining -= counts[q._id];
+    });
+
+    // If some quizzes had fewer than their share, distribute leftovers to quizzes that have more
+    if (remaining > 0) {
+      for (let q of classQuizzes) {
+        if (remaining <= 0) break;
+        const available = q.questions ? q.questions.length : 0;
+        const currentCount = counts[q._id] || 0;
+        const canAdd = available - currentCount;
+        if (canAdd > 0) {
+          const add = Math.min(canAdd, remaining);
+          counts[q._id] += add;
+          remaining -= add;
+        }
+      }
+    }
+
+    setTestQuizCounts(counts);
+  };
+
+  const handleTotalQuestionsChange = (val) => {
+    const newTotal = Math.max(1, parseInt(val, 10) || 1);
+    setTestTotalQuestions(newTotal);
+    
+    const classQuizzes = quizzes.filter(q => 
+      (selectedClass._id === 'uncategorized' ? !q.classId : q.classId === selectedClass._id) && !q.isTest
+    );
+    calculateEvenSplit(classQuizzes, newTotal);
+    setTestTitle(`${selectedClass.name} - Test (${newTotal} Questions)`);
+  };
+
+  const handleQuizCountChange = (quizId, val) => {
+    const count = Math.max(0, parseInt(val, 10) || 0);
+    const updated = { ...testQuizCounts, [quizId]: count };
+    setTestQuizCounts(updated);
+    
+    const sum = Object.values(updated).reduce((a, b) => a + b, 0);
+    setTestTotalQuestions(sum);
+    setTestTitle(`${selectedClass.name} - Test (${sum} Questions)`);
+  };
+
+  const handleGenerateAndSaveTest = async () => {
+    setSaving(true);
+    setError('');
+
+    const classQuizzes = quizzes.filter(q => 
+      (selectedClass._id === 'uncategorized' ? !q.classId : q.classId === selectedClass._id) && !q.isTest
+    );
+
+    let testQuestions = [];
+
+    classQuizzes.forEach(q => {
+      const takeCount = testQuizCounts[q._id] || 0;
+      if (takeCount > 0 && q.questions && q.questions.length > 0) {
+        const shuffledPool = shuffleArray(q.questions);
+        const selected = shuffledPool.slice(0, takeCount).map((question, idx) => ({
+          ...question,
+          id: `${q._id}_${question.id || idx}`
+        }));
+        testQuestions.push(...selected);
+      }
+    });
+
+    if (testQuestions.length === 0) {
+      setError('Please select at least 1 question for the test.');
+      setSaving(false);
+      return;
+    }
+
+    const compiledTest = {
+      title: testTitle.trim() || `${selectedClass.name} Test`,
+      classId: selectedClass._id !== 'uncategorized' ? selectedClass._id : null,
+      isTest: true,
+      questions: shuffleArray(testQuestions),
+      userAnswers: {}
+    };
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/quizzes`, {
+        method: 'POST',
+        headers: API_HEADERS,
+        body: JSON.stringify(compiledTest)
+      });
+
+      if (!res.ok) throw new Error('Failed to save test');
+      const savedTest = await res.json();
+      setQuizzes([savedTest, ...quizzes]);
+      startQuiz(savedTest);
+    } catch (err) {
+      console.error('Failed to create test:', err);
+      setError('Failed to save test. Running as temporary test.');
+      startQuiz(compiledTest);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -439,9 +764,7 @@ export default function QuizApp() {
     return baseStyle;
   };
 
-  // --- Render ---
-
-  // Login handler
+  // --- Login Handler ---
   const handleLogin = (e) => {
     e.preventDefault();
     if (loginPassword.trim().toLowerCase() === 'eimo') {
@@ -457,10 +780,12 @@ export default function QuizApp() {
     }
   };
 
+  // ==========================================
+  // 1. LOGIN SCREEN
+  // ==========================================
   if (gameState === 'login') {
     return (
       <div style={styles.loginContainer}>
-        {/* Floating hearts */}
         {heartPositions.map((heart, i) => (
           <div
             key={i}
@@ -505,57 +830,341 @@ export default function QuizApp() {
     );
   }
 
+  // ==========================================
+  // 2. HOME SCREEN: MY CLASSES
+  // ==========================================
   if (gameState === 'home') {
+    const uncategorizedQuizzes = quizzes.filter(q => !q.classId);
+    
     return (
       <div style={styles.page}>
-        <h1 style={styles.header}>My Presentation Quizzes</h1>
+        <h1 style={styles.header}>My Classes</h1>
+        <p style={styles.subHeader}>Select a class to view its quizzes and tests</p>
         
         {error && <div style={styles.errorMsg}>{error}</div>}
         
         {loading ? (
           <p style={{marginBottom: '2rem', fontSize: '1.2rem'}}>Connecting to database... (Render servers may take 30s to wake up)</p>
-        ) : quizzes.length === 0 ? (
-          <p style={{marginBottom: '2rem', fontSize: '1.2rem'}}>No quizzes found in the database. Let's create one!</p>
         ) : (
           <div style={styles.grid}>
-            {quizzes.map((quiz) => (
-              <div key={quiz._id} style={styles.quizSquare} onClick={() => startQuiz(quiz)}>
-                <button 
-                  style={styles.deleteBtn} 
-                  onClick={(e) => handleDeleteQuiz(e, quiz._id)}
-                  title="Delete Quiz"
+            {classes.map((cls) => {
+              const classQuizzes = quizzes.filter(q => q.classId === cls._id && !q.isTest);
+              const classTests = quizzes.filter(q => q.classId === cls._id && q.isTest);
+              return (
+                <div 
+                  key={cls._id} 
+                  style={styles.cardSquare} 
+                  onClick={() => { setSelectedClass(cls); setGameState('class'); }}
                 >
-                  ✕
-                </button>
-                {quiz.title}
+                  <button 
+                    style={styles.deleteBtn} 
+                    onClick={(e) => handleDeleteClass(e, cls._id)}
+                    title="Delete Class"
+                  >
+                    ✕
+                  </button>
+                  <span style={{ fontSize: '1.5rem', marginBottom: '0.3rem' }}>🏫 {cls.name}</span>
+                  <div style={styles.cardSubtext}>
+                    {classQuizzes.length} {classQuizzes.length === 1 ? 'Quiz' : 'Quizzes'} • {classTests.length} {classTests.length === 1 ? 'Test' : 'Tests'}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* If there are existing legacy quizzes without classId, show Uncategorized class */}
+            {uncategorizedQuizzes.length > 0 && (
+              <div 
+                style={{ ...styles.cardSquare, backgroundColor: '#f5f5f5' }} 
+                onClick={() => { setSelectedClass({ _id: 'uncategorized', name: 'Uncategorized' }); setGameState('class'); }}
+              >
+                <span style={{ fontSize: '1.5rem', marginBottom: '0.3rem' }}>📁 Uncategorized</span>
+                <div style={styles.cardSubtext}>
+                  {uncategorizedQuizzes.filter(q => !q.isTest).length} Quizzes • {uncategorizedQuizzes.filter(q => q.isTest).length} Tests
+                </div>
               </div>
-            ))}
+            )}
           </div>
         )}
 
-        <button style={styles.btnPrimary} onClick={() => setGameState('create')}>
-          + Create New Quiz
+        <button style={styles.btnPrimary} onClick={() => setShowClassModal(true)}>
+          + Create New Class
         </button>
+
+        {/* Modal: Create Class */}
+        {showClassModal && (
+          <div style={styles.modalOverlay} onClick={() => setShowClassModal(false)}>
+            <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+              <h2 style={{ margin: 0, fontSize: '1.6rem' }}>Create New Class</h2>
+              <form onSubmit={handleCreateClass} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <input
+                  type="text"
+                  placeholder="e.g. Biology 101, Anatomy, History"
+                  value={newClassName}
+                  onChange={(e) => setNewClassName(e.target.value)}
+                  style={styles.textInput}
+                  autoFocus
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                  <button 
+                    type="button" 
+                    style={styles.controlBtn} 
+                    onClick={() => setShowClassModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" style={styles.btnPrimary}>
+                    Create Class
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
+  // ==========================================
+  // 3. CLASS DETAIL SCREEN (QUIZZES & TESTS)
+  // ==========================================
+  if (gameState === 'class') {
+    const classQuizzes = quizzes.filter(q => 
+      (selectedClass._id === 'uncategorized' ? !q.classId : q.classId === selectedClass._id) && !q.isTest
+    );
+    const classTests = quizzes.filter(q => 
+      (selectedClass._id === 'uncategorized' ? !q.classId : q.classId === selectedClass._id) && q.isTest
+    );
+
+    return (
+      <div style={styles.page}>
+        <div style={{ ...styles.controls, marginTop: 0, marginBottom: '1.5rem', width: '100%', maxWidth: '1000px' }}>
+          <button style={styles.controlBtn} onClick={() => { setSelectedClass(null); setGameState('home'); fetchQuizzes(); }}>
+            ◄ Back to Classes
+          </button>
+          {selectedClass._id !== 'uncategorized' && (
+            <button style={styles.btnWarning} onClick={(e) => handleDeleteClass(e, selectedClass._id)}>
+              🗑️ Delete Class
+            </button>
+          )}
+        </div>
+
+        <h1 style={{ ...styles.header, marginBottom: '0.5rem' }}>🏫 {selectedClass.name}</h1>
+        <p style={styles.subHeader}>Manage quizzes and practice comprehensive tests</p>
+
+        {error && <div style={styles.errorMsg}>{error}</div>}
+
+        {/* --- SECTION 1: QUIZZES --- */}
+        <div style={styles.sectionTitle}>
+          <span>📚 Quizzes ({classQuizzes.length})</span>
+          <button 
+            style={{ ...styles.btnPrimary, padding: '0.6rem 1.4rem', fontSize: '0.95rem' }} 
+            onClick={() => setGameState('create')}
+          >
+            + Add Quiz
+          </button>
+        </div>
+
+        {classQuizzes.length === 0 ? (
+          <p style={{ margin: '1.5rem 0 2.5rem 0', opacity: 0.8, fontSize: '1.1rem' }}>
+            No quizzes in this class yet. Click "+ Add Quiz" to create one!
+          </p>
+        ) : (
+          <div style={styles.grid}>
+            {classQuizzes.map((quiz) => {
+              const qCount = quiz.questions ? quiz.questions.length : 0;
+              const answeredCount = quiz.userAnswers ? Object.keys(quiz.userAnswers).length : 0;
+              return (
+                <div key={quiz._id} style={styles.cardSquare} onClick={() => startQuiz(quiz)}>
+                  <button 
+                    style={styles.deleteBtn} 
+                    onClick={(e) => handleDeleteQuiz(e, quiz._id)}
+                    title="Delete Quiz"
+                  >
+                    ✕
+                  </button>
+                  <span style={{ fontSize: '1.25rem' }}>{quiz.title}</span>
+                  <div style={styles.cardSubtext}>
+                    {qCount} Questions {answeredCount > 0 ? `• (${answeredCount}/${qCount} answered)` : ''}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* --- SECTION 2: TESTS --- */}
+        <div style={{ ...styles.sectionTitle, marginTop: '2.5rem' }}>
+          <span>📝 Tests ({classTests.length})</span>
+          <button 
+            style={{ ...styles.btnYellow, padding: '0.6rem 1.4rem', fontSize: '0.95rem' }} 
+            onClick={openTestConfig}
+          >
+            ⚡ Create Test
+          </button>
+        </div>
+
+        {classTests.length === 0 ? (
+          <p style={{ margin: '1.5rem 0', opacity: 0.8, fontSize: '1.1rem' }}>
+            No tests created yet. Click "⚡ Create Test" to generate a randomized test across all quizzes!
+          </p>
+        ) : (
+          <div style={styles.grid}>
+            {classTests.map((test) => {
+              const qCount = test.questions ? test.questions.length : 0;
+              const answeredCount = test.userAnswers ? Object.keys(test.userAnswers).length : 0;
+              return (
+                <div key={test._id} style={styles.testCardSquare} onClick={() => startQuiz(test)}>
+                  <button 
+                    style={styles.deleteBtn} 
+                    onClick={(e) => handleDeleteQuiz(e, test._id)}
+                    title="Delete Test"
+                  >
+                    ✕
+                  </button>
+                  <span style={{ fontSize: '1.25rem' }}>⭐ {test.title}</span>
+                  <div style={styles.cardSubtext}>
+                    {qCount} Questions {answeredCount > 0 ? `• (${answeredCount}/${qCount} answered)` : ''}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ==========================================
+  // 4. TEST CONFIGURATION SCREEN
+  // ==========================================
+  if (gameState === 'testConfig') {
+    const classQuizzes = quizzes.filter(q => 
+      (selectedClass._id === 'uncategorized' ? !q.classId : q.classId === selectedClass._id) && !q.isTest
+    );
+    const totalSelected = Object.values(testQuizCounts).reduce((a, b) => a + b, 0);
+
+    return (
+      <div style={styles.page}>
+        <h1 style={styles.header}>⚡ Create Test for {selectedClass.name}</h1>
+        <p style={styles.subHeader}>Configure the question split across quizzes in this class</p>
+
+        {error && <div style={styles.errorMsg}>{error}</div>}
+
+        <div style={styles.configCard}>
+          <div>
+            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '0.4rem' }}>Test Title</label>
+            <input
+              type="text"
+              value={testTitle}
+              onChange={(e) => setTestTitle(e.target.value)}
+              style={styles.textInput}
+            />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '0.4rem' }}>Total Questions on Test</label>
+              <input
+                type="number"
+                min="1"
+                value={testTotalQuestions}
+                onChange={(e) => handleTotalQuestionsChange(e.target.value)}
+                style={styles.numberInput}
+              />
+            </div>
+
+            <button 
+              style={{ ...styles.btnSecondary, padding: '0.6rem 1.2rem', fontSize: '0.95rem' }}
+              onClick={() => calculateEvenSplit(classQuizzes, testTotalQuestions)}
+            >
+              🔄 Recalculate Even Split
+            </button>
+          </div>
+
+          <div>
+            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '0.8rem', borderBottom: '1px solid #ddd', paddingBottom: '0.4rem' }}>
+              Questions Per Quiz (Even Split by Default):
+            </label>
+            {classQuizzes.map(q => {
+              const available = q.questions ? q.questions.length : 0;
+              const count = testQuizCounts[q._id] !== undefined ? testQuizCounts[q._id] : 0;
+              return (
+                <div key={q._id} style={styles.quizConfigRow}>
+                  <div>
+                    <div style={{ fontWeight: 'bold' }}>{q.title}</div>
+                    <div style={{ fontSize: '0.85rem', color: '#666' }}>{available} total available questions</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input
+                      type="number"
+                      min="0"
+                      max={available}
+                      value={count}
+                      onChange={(e) => handleQuizCountChange(q._id, e.target.value)}
+                      style={styles.numberInput}
+                    />
+                    <span style={{ fontSize: '0.9rem', color: '#666' }}>/ {available}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ fontSize: '1.1rem', fontWeight: 'bold', textAlign: 'right', color: colors.dark }}>
+            Total Configured Questions: <span style={{ color: colors.green }}>{totalSelected}</span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '1rem', width: '100%', maxWidth: '750px', justifyContent: 'flex-end' }}>
+          <button style={styles.controlBtn} onClick={() => setGameState('class')} disabled={saving}>
+            Cancel
+          </button>
+          <button style={styles.btnPrimary} onClick={handleGenerateAndSaveTest} disabled={saving || totalSelected === 0}>
+            {saving ? 'Generating Test...' : '⚡ Start Test'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // 5. CREATE QUIZ SCREEN (PPTX & PDF PROMPT BUTTONS)
+  // ==========================================
   if (gameState === 'create') {
     return (
       <div style={styles.page}>
         <h1 style={styles.header}>Paste AI Output</h1>
+        <p style={styles.subHeader}>
+          Adding quiz to: <strong>{selectedClass ? selectedClass.name : 'Class'}</strong>
+        </p>
+
         {error && <div style={styles.errorMsg}>{error}</div>}
         
-        <button 
-          style={{
-            ...styles.copyBtn,
-            backgroundColor: copied ? colors.correctGreen : colors.blue,
-            boxShadow: copied ? '0 4px 0 #4a8c29' : '0 4px 0 #0d468a'
-          }} 
-          onClick={handleCopyPrompt}
-        >
-          {copied ? '✅ Copied to Clipboard!' : '📋 Copy AI Prompt'}
-        </button>
+        {/* Dual AI Prompt Copy Buttons */}
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button 
+            style={{
+              ...styles.copyBtn,
+              backgroundColor: copiedPptx ? colors.correctGreen : colors.blue,
+              boxShadow: copiedPptx ? '0 4px 0 #4a8c29' : '0 4px 0 #0d468a'
+            }} 
+            onClick={handleCopyPptxPrompt}
+          >
+            {copiedPptx ? '✅ Copied!' : '📋 pptx AI prompt'}
+          </button>
+
+          <button 
+            style={{
+              ...styles.copyBtn,
+              backgroundColor: copiedPdf ? colors.correctGreen : colors.yellow,
+              color: copiedPdf ? colors.white : colors.dark,
+              boxShadow: copiedPdf ? '0 4px 0 #4a8c29' : '0 4px 0 #cc9a06'
+            }} 
+            onClick={handleCopyPdfPrompt}
+          >
+            {copiedPdf ? '✅ Copied!' : '📄 pdf AI prompt'}
+          </button>
+        </div>
 
         <textarea
           style={styles.inputArea}
@@ -563,8 +1172,10 @@ export default function QuizApp() {
           onChange={(e) => setInputText(e.target.value)}
           placeholder='{ "title": "...", "questions": [...] }'
         />
-        <div style={{display: 'flex', gap: '1rem'}}>
-          <button style={styles.controlBtn} onClick={() => setGameState('home')} disabled={saving}>Cancel</button>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <button style={styles.controlBtn} onClick={() => setGameState(selectedClass ? 'class' : 'home')} disabled={saving}>
+            Cancel
+          </button>
           <button style={styles.btnPrimary} onClick={handleSaveNewQuiz} disabled={saving}>
             {saving ? 'Saving to Database...' : 'Save & Start'}
           </button>
@@ -573,22 +1184,40 @@ export default function QuizApp() {
     );
   }
 
-  const currentQ = currentQuiz.questions[currentIndex];
+  // ==========================================
+  // 6. QUIZ & TEST TAKING SCREEN
+  // ==========================================
+  const currentQ = currentQuiz?.questions ? currentQuiz.questions[currentIndex] : null;
   const qId = currentQ?.id;
-  const hasAnswered = userAnswers[qId] !== undefined;
+  const hasAnswered = currentQ ? userAnswers[qId] !== undefined : false;
 
   // Compute progress bar data
-  const totalQuestions = currentQuiz.questions.length;
-  const correctCount = currentQuiz.questions.filter(q => {
+  const totalQuestions = currentQuiz?.questions ? currentQuiz.questions.length : 0;
+  const correctCount = currentQuiz?.questions ? currentQuiz.questions.filter(q => {
     const answer = userAnswers[q.id];
     return answer !== undefined && answer === q.correctIndex;
-  }).length;
+  }).length : 0;
+
+  if (!currentQ) {
+    return (
+      <div style={styles.page}>
+        <p>No questions found in this quiz.</p>
+        <button style={styles.controlBtn} onClick={() => setGameState(selectedClass ? 'class' : 'home')}>
+          ◄ Back
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.page}>
-      <div style={{...styles.controls, marginTop: 0, marginBottom: '2rem'}}>
-        <button style={styles.controlBtn} onClick={() => { setGameState('home'); fetchQuizzes(); }}>◄ Back to Home</button>
-        <button style={styles.btnWarning} onClick={handleResetQuiz}>↻ Reset Quiz</button>
+      <div style={{ ...styles.controls, marginTop: 0, marginBottom: '1.5rem' }}>
+        <button style={styles.controlBtn} onClick={() => { setGameState(selectedClass ? 'class' : 'home'); fetchQuizzes(); }}>
+          ◄ Back to {selectedClass ? selectedClass.name : 'Home'}
+        </button>
+        <button style={styles.btnWarning} onClick={handleResetQuiz}>
+          ↻ Reset
+        </button>
       </div>
 
       {/* Progress Bar + Score */}
@@ -596,7 +1225,7 @@ export default function QuizApp() {
         <div style={styles.progressBar}>
           {currentQuiz.questions.map((q, i) => {
             const answer = userAnswers[q.id];
-            let segColor = '#555'; // unanswered - dark gray
+            let segColor = colors.darkGray; // unanswered
             if (answer !== undefined) {
               segColor = answer === q.correctIndex ? colors.correctGreen : colors.incorrectRed;
             }
@@ -655,16 +1284,22 @@ export default function QuizApp() {
 
       <div style={styles.controls}>
         <button 
-          style={{...styles.controlBtn, opacity: currentIndex === 0 ? 0 : 1}} 
+          style={{ ...styles.controlBtn, opacity: currentIndex === 0 ? 0.3 : 1 }} 
           onClick={() => { setCurrentIndex(currentIndex - 1); setShowExplanation(false); }}
           disabled={currentIndex === 0}
-        >◄ Back</button>
-        <span style={{fontWeight: 'bold'}}>Question {currentIndex + 1} of {currentQuiz.questions.length}</span>
+        >
+          ◄ Back
+        </button>
+        <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
+          Question {currentIndex + 1} of {totalQuestions}
+        </span>
         <button 
-          style={{...styles.controlBtn, opacity: currentIndex === currentQuiz.questions.length - 1 ? 0 : 1}} 
+          style={{ ...styles.controlBtn, opacity: currentIndex === totalQuestions - 1 ? 0.3 : 1 }} 
           onClick={() => { setCurrentIndex(currentIndex + 1); setShowExplanation(false); }}
-          disabled={currentIndex === currentQuiz.questions.length - 1}
-        >Next ►</button>
+          disabled={currentIndex === totalQuestions - 1}
+        >
+          Next ►
+        </button>
       </div>
     </div>
   );
