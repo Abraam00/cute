@@ -356,9 +356,82 @@ export default function QuizApp() {
   const [testQuizCounts, setTestQuizCounts] = useState({});
   const [testTitle, setTestTitle] = useState('');
 
+  const navigateTo = (nextGameState, nextClass = selectedClass, nextQuiz = null) => {
+    setGameState(nextGameState);
+    setSelectedClass(nextClass);
+    if (nextQuiz !== undefined) {
+      setCurrentQuiz(nextQuiz);
+    }
+    setError('');
+    setShowExplanation(false);
+    window.history.pushState({
+      gameState: nextGameState,
+      selectedClass: nextClass,
+      currentQuiz: nextQuiz
+    }, '');
+  };
+
+  const goBack = (fallbackGameState = 'home', fallbackClass = null) => {
+    if (window.history.state && window.history.length > 1) {
+      window.history.back();
+    } else {
+      setSelectedClass(fallbackClass);
+      setGameState(fallbackGameState);
+      setCurrentQuiz(null);
+      setShowExplanation(false);
+      setError('');
+      window.history.replaceState({
+        gameState: fallbackGameState,
+        selectedClass: fallbackClass,
+        currentQuiz: null
+      }, '');
+      if (fallbackGameState === 'home' || fallbackGameState === 'class') {
+        fetchQuizzes();
+      }
+    }
+  };
+
   useEffect(() => {
     fetchClasses();
     fetchQuizzes();
+
+    // Initialize browser history entry if not already set
+    const isLogged = sessionStorage.getItem('isLoggedIn') === 'true';
+    const initialGameState = isLogged ? 'home' : 'login';
+    window.history.replaceState({
+      gameState: initialGameState,
+      selectedClass: null,
+      currentQuiz: null
+    }, '');
+
+    const handlePopState = (e) => {
+      const state = e.state;
+      if (state && state.gameState) {
+        setGameState(state.gameState);
+        setSelectedClass(state.selectedClass || null);
+        if (state.currentQuiz) {
+          setCurrentQuiz(state.currentQuiz);
+          setUserAnswers(state.currentQuiz.userAnswers || {});
+          setCurrentIndex(0);
+        } else {
+          setCurrentQuiz(null);
+        }
+        setShowExplanation(false);
+        setError('');
+        if (state.gameState === 'home' || state.gameState === 'class') {
+          fetchQuizzes();
+        }
+      } else {
+        const loggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
+        setGameState(loggedIn ? 'home' : 'login');
+        setSelectedClass(null);
+        setCurrentQuiz(null);
+        setShowExplanation(false);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const fetchClasses = async () => {
@@ -446,6 +519,11 @@ export default function QuizApp() {
       if (selectedClass && selectedClass._id === classId) {
         setSelectedClass(null);
         setGameState('home');
+        window.history.replaceState({
+          gameState: 'home',
+          selectedClass: null,
+          currentQuiz: null
+        }, '');
       }
     } catch (err) {
       setError('Failed to delete class.');
@@ -586,11 +664,17 @@ export default function QuizApp() {
 
   const startQuiz = (quiz) => {
     const shuffledQuestions = shuffleArray(quiz.questions || []);
-    setCurrentQuiz({ ...quiz, questions: shuffledQuestions });
+    const quizWithShuffled = { ...quiz, questions: shuffledQuestions };
+    setCurrentQuiz(quizWithShuffled);
     setUserAnswers(quiz.userAnswers || {});
     setCurrentIndex(0);
     setShowExplanation(false);
     setGameState('quiz');
+    window.history.pushState({
+      gameState: 'quiz',
+      selectedClass: selectedClass,
+      currentQuiz: quizWithShuffled
+    }, '');
   };
 
   const handleChoiceClick = (optionIndex) => {
@@ -633,7 +717,7 @@ export default function QuizApp() {
 
     // Calculate even split
     calculateEvenSplit(classQuizzes, targetTotal);
-    setGameState('testConfig');
+    navigateTo('testConfig', selectedClass, null);
   };
 
   const calculateEvenSplit = (classQuizzes, targetTotal) => {
@@ -772,6 +856,11 @@ export default function QuizApp() {
       setGameState('home');
       setLoginError(false);
       setLoginPassword('');
+      window.history.replaceState({
+        gameState: 'home',
+        selectedClass: null,
+        currentQuiz: null
+      }, '');
     } else {
       setLoginError(true);
       setLoginShake(true);
@@ -854,7 +943,7 @@ export default function QuizApp() {
                 <div 
                   key={cls._id} 
                   style={styles.cardSquare} 
-                  onClick={() => { setSelectedClass(cls); setGameState('class'); }}
+                  onClick={() => navigateTo('class', cls, null)}
                 >
                   <button 
                     style={styles.deleteBtn} 
@@ -875,7 +964,7 @@ export default function QuizApp() {
             {uncategorizedQuizzes.length > 0 && (
               <div 
                 style={{ ...styles.cardSquare, backgroundColor: '#f5f5f5' }} 
-                onClick={() => { setSelectedClass({ _id: 'uncategorized', name: 'Uncategorized' }); setGameState('class'); }}
+                onClick={() => navigateTo('class', { _id: 'uncategorized', name: 'Uncategorized' }, null)}
               >
                 <span style={{ fontSize: '1.5rem', marginBottom: '0.3rem' }}>📁 Uncategorized</span>
                 <div style={styles.cardSubtext}>
@@ -938,7 +1027,7 @@ export default function QuizApp() {
     return (
       <div style={styles.page}>
         <div style={{ ...styles.controls, marginTop: 0, marginBottom: '1.5rem', width: '100%', maxWidth: '1000px' }}>
-          <button style={styles.controlBtn} onClick={() => { setSelectedClass(null); setGameState('home'); fetchQuizzes(); }}>
+          <button style={styles.controlBtn} onClick={() => goBack('home', null)}>
             ◄ Back to Classes
           </button>
           {selectedClass._id !== 'uncategorized' && (
@@ -958,7 +1047,7 @@ export default function QuizApp() {
           <span>📚 Quizzes ({classQuizzes.length})</span>
           <button 
             style={{ ...styles.btnPrimary, padding: '0.6rem 1.4rem', fontSize: '0.95rem' }} 
-            onClick={() => setGameState('create')}
+            onClick={() => navigateTo('create', selectedClass, null)}
           >
             + Add Quiz
           </button>
@@ -1116,7 +1205,7 @@ export default function QuizApp() {
         </div>
 
         <div style={{ display: 'flex', gap: '1rem', width: '100%', maxWidth: '750px', justifyContent: 'flex-end' }}>
-          <button style={styles.controlBtn} onClick={() => setGameState('class')} disabled={saving}>
+          <button style={styles.controlBtn} onClick={() => goBack('class', selectedClass)} disabled={saving}>
             Cancel
           </button>
           <button style={styles.btnPrimary} onClick={handleGenerateAndSaveTest} disabled={saving || totalSelected === 0}>
@@ -1173,7 +1262,7 @@ export default function QuizApp() {
           placeholder='{ "title": "...", "questions": [...] }'
         />
         <div style={{ display: 'flex', gap: '1rem' }}>
-          <button style={styles.controlBtn} onClick={() => setGameState(selectedClass ? 'class' : 'home')} disabled={saving}>
+          <button style={styles.controlBtn} onClick={() => goBack(selectedClass ? 'class' : 'home', selectedClass)} disabled={saving}>
             Cancel
           </button>
           <button style={styles.btnPrimary} onClick={handleSaveNewQuiz} disabled={saving}>
@@ -1202,7 +1291,7 @@ export default function QuizApp() {
     return (
       <div style={styles.page}>
         <p>No questions found in this quiz.</p>
-        <button style={styles.controlBtn} onClick={() => setGameState(selectedClass ? 'class' : 'home')}>
+        <button style={styles.controlBtn} onClick={() => goBack(selectedClass ? 'class' : 'home', selectedClass)}>
           ◄ Back
         </button>
       </div>
@@ -1212,7 +1301,7 @@ export default function QuizApp() {
   return (
     <div style={styles.page}>
       <div style={{ ...styles.controls, marginTop: 0, marginBottom: '1.5rem' }}>
-        <button style={styles.controlBtn} onClick={() => { setGameState(selectedClass ? 'class' : 'home'); fetchQuizzes(); }}>
+        <button style={styles.controlBtn} onClick={() => goBack(selectedClass ? 'class' : 'home', selectedClass)}>
           ◄ Back to {selectedClass ? selectedClass.name : 'Home'}
         </button>
         <button style={styles.btnWarning} onClick={handleResetQuiz}>
